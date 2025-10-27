@@ -5,6 +5,7 @@ members = [
     "crates/manifold-node",
     "crates/genesis-sdk",
     "crates/observer-client",
+    "crates/manifold-archiver",
 ]
 
 [workspace.package]
