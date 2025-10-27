@@ -231,9 +231,13 @@ SDK for agent creation:
 
 #### 4. **observer-client** 👁️
 
-Read-only monitoring tool:
+Read-only monitoring tool with latency compensation:
 - Subscribes to gossipsub topics
 - Decodes and displays agent actions
+- **Dead Reckoning**: Predictive position interpolation using kinematic equations
+  - Smooth agent movement visualization between network updates
+  - Blends predicted positions with authoritative state
+  - Configurable error thresholds for correction strength
 - **TODO**: 3D visualization with wgpu/rend3
 
 #### 5. **manifold-archiver** 💾
@@ -359,6 +363,48 @@ pub enum ProposalType {
 - Identity-weighted participation
 
 **TODO**: Implement on-chain anchoring for governance history.
+
+## 🎯 Latency Compensation
+
+The observer client implements **dead reckoning** for smooth agent visualization:
+
+### Kinematic Prediction
+
+Position and velocity are predicted using physics equations:
+
+```rust
+// Predict position with velocity and acceleration
+predicted_position = p₀ + v₀·Δt + ½·a·Δt²
+
+// Update velocity
+predicted_velocity = v₀ + a·Δt
+```
+
+### State Reconciliation
+
+When authoritative updates arrive from the network:
+
+1. **Calculate prediction error**: Distance between predicted and actual position
+2. **Blend positions**: Interpolate to avoid jarring corrections ("rubber-banding")
+   - `new_position = lerp(predicted, authoritative, blend_factor)`
+   - Default blend factor: 0.3 (30% toward authoritative)
+3. **Force correction**: If error exceeds threshold (10 units), snap to authoritative
+
+### Smoothing
+
+Additional exponential smoothing for display:
+
+```rust
+display_position = lerp(predicted, authoritative, smoothing_alpha)
+```
+
+This provides:
+- ✅ **Smooth movement** between network updates (compensates for 100-200ms latency)
+- ✅ **Accurate positioning** when authoritative state arrives
+- ✅ **Minimal rubber-banding** via progressive correction
+- ✅ **Configurable parameters** for different network conditions
+
+**TODO**: Implement projective velocity blending for smoother direction changes.
 
 ## 🔒 Security
 
