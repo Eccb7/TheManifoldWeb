@@ -28,7 +28,14 @@ TheManifoldWeb/
 │   ├── manifold-protocol/       # Core data structures and protocol definitions
 │   ├── manifold-node/           # Network node with libp2p and simulation engine
 │   ├── genesis-sdk/             # SDK for creating and deploying agents
-│   └── observer-client/         # Read-only network monitor
+│   ├── observer-client/         # Read-only network monitor
+│   └── manifold-archiver/       # Arweave integration for permanent storage
+├── contracts/                   # Solidity smart contracts (Foundry)
+│   ├── src/                     # Contract source files
+│   │   ├── ManifoldGovernanceToken.sol  # ERC-20 governance token
+│   │   └── ManifoldDAO.sol              # DAO governance contract
+│   ├── test/                    # Contract tests
+│   └── script/                  # Deployment scripts
 ├── python/
 │   └── simulation-lab/          # Mesa/DEAP simulations and experiments
 ├── docs/                        # Documentation
@@ -45,6 +52,8 @@ TheManifoldWeb/
 - **Rust** 1.76 or later ([install](https://rustup.rs/))
 - **Python** 3.10 or later
 - **IPFS** daemon ([install](https://docs.ipfs.tech/install/))
+- **Arweave Wallet** (optional, for permanent archival) - [get wallet](https://arweave.app)
+- **Foundry** (optional, for smart contract development) - [install](https://book.getfoundry.sh/getting-started/installation)
 - **Git**
 
 ### Build the Project
@@ -59,6 +68,12 @@ cargo build --workspace
 
 # Install Python dependencies
 pip install -r python/simulation-lab/requirements.txt
+
+# Build smart contracts (optional)
+cd contracts
+forge install
+forge build
+cd ..
 ```
 
 ### Run Tests
@@ -70,6 +85,10 @@ cargo test --workspace
 # Python tests
 cd python/simulation-lab
 pytest
+
+# Smart contract tests (requires Foundry)
+cd contracts
+forge test
 ```
 
 ## 🎮 Usage
@@ -217,12 +236,37 @@ Read-only monitoring tool:
 - Decodes and displays agent actions
 - **TODO**: 3D visualization with wgpu/rend3
 
-#### 5. **simulation-lab** (Python) 🧪
+#### 5. **manifold-archiver** 💾
+
+Permanent archival layer for Arweave:
+- **Genesis Block Creation**: Immutable initial simulation state
+- **Checkpoint Archival**: Long-term storage of consensus snapshots
+- **CLI Tool**: Command-line interface for uploading genesis blocks
+- One-time payment model ensures data persists indefinitely
+
+#### 6. **simulation-lab** (Python) 🧪
 
 Research and experimentation environment:
 - **Mesa**: Grid-based multi-agent simulation
 - **DEAP**: Evolutionary computation toolkit
 - Genetic algorithm demos matching Rust implementation
+
+#### 7. **Smart Contracts** (Solidity) 🏛️
+
+On-chain governance layer built with Foundry:
+- **ManifoldGovernanceToken**: ERC-20 token with voting extensions
+  - Token-weighted voting power (1 token = 1 vote)
+  - Reputation tracking for node operators
+  - Agent contribution metrics
+  - Max supply: 100M MGT
+- **ManifoldDAO**: Decentralized governance contract
+  - Proposal creation (requires 10,000 MGT minimum)
+  - Voting period: ~7 days (50,400 blocks)
+  - Time-locked execution (2 day delay)
+  - 10% quorum requirement
+  - State machine: Pending → Active → Succeeded → Queued → Executed
+
+See `contracts/README.md` for deployment and usage instructions.
 
 ### Network Protocol
 
