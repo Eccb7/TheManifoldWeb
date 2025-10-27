@@ -3,8 +3,12 @@
 //! Read-only monitoring client for The Manifold Web.
 //!
 //! Subscribes to network events via gossipsub and displays agent activity.
+//! Includes dead reckoning for smooth agent position prediction to compensate
+//! for network latency.
+//!
 //! Future versions will include 3D visualization using wgpu/rend3.
 
+mod dead_reckoning;
 mod observer;
 
 use anyhow::Result;
