@@ -16,6 +16,7 @@ serde_json = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+glam = { workspace = true }
 
 # Placeholder dependencies for future GUI rendering
 # wgpu = "0.18"
