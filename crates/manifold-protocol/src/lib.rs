@@ -6,8 +6,10 @@
 //! where autonomous agents evolve, collaborate, and self-govern through
 //! cryptographic consensus and emergent intelligence.
 
+pub mod consensus;
 pub mod errors;
 pub mod models;
 
+pub use consensus::*;
 pub use errors::*;
 pub use models::*;
