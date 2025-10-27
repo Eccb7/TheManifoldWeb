@@ -12,3 +12,4 @@ serde_json = { workspace = true }
 glam = { workspace = true }
 libp2p-identity = "0.2"
 thiserror = { workspace = true }
+sha2 = "0.10"
