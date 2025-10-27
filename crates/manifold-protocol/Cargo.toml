@@ -1,0 +1,14 @@
+[package]
+name = "manifold-protocol"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+glam = { workspace = true }
+libp2p-identity = "0.2"
+thiserror = { workspace = true }
