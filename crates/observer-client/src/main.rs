@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
     info!("👁️  Starting Manifold Observer Client...");
 
     // Create and run observer
-    let mut observer = observer::Observer::new().await?;
+    let observer = observer::Observer::new().await?;
     observer.run().await?;
 
     Ok(())

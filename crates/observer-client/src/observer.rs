@@ -2,6 +2,7 @@
 
 use crate::dead_reckoning::{DeadReckoning, PredictedAgent};
 use anyhow::Result;
+use futures::StreamExt;
 use glam::Vec3;
 use libp2p::{
     gossipsub, identify, identity, noise, tcp, yamux, Multiaddr, PeerId, Swarm,
@@ -170,7 +171,7 @@ impl Observer {
 
     /// Process and display an action message from the network.
     fn handle_action_message(
-        &self,
+        &mut self,
         source: PeerId,
         message_id: gossipsub::MessageId,
         message: gossipsub::Message,
@@ -284,8 +285,8 @@ impl Observer {
     #[allow(dead_code)]
     fn update_predictions(&mut self) {
         for (agent_id, predicted_agent) in self.predicted_agents.iter_mut() {
-            let predicted_pos = self.dead_reckoning.predict_position(predicted_agent);
-            let display_pos = self.dead_reckoning.get_display_position(predicted_agent);
+            let _predicted_pos = self.dead_reckoning.predict_position(predicted_agent);
+            let _display_pos = self.dead_reckoning.get_display_position(predicted_agent);
             
             // Get time since last update for staleness detection
             let time_since_update = self.dead_reckoning.time_since_update(predicted_agent);
