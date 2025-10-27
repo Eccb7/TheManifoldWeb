@@ -91,6 +91,37 @@ jobs:
         cd python/simulation-lab
         python demo.py
 
+  foundry-test:
+    name: Foundry Tests (Smart Contracts)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@v1
+      with:
+        version: nightly
+
+    - name: Run Forge build
+      run: |
+        cd contracts
+        forge --version
+        forge build --sizes
+
+    - name: Run Forge tests
+      run: |
+        cd contracts
+        forge test -vvv
+
+    - name: Run Forge coverage (if applicable)
+      run: |
+        cd contracts
+        forge coverage || echo "Coverage skipped"
+
   security-audit:
     name: Security Audit
     runs-on: ubuntu-latest
