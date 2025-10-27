@@ -1,11 +1,14 @@
 //! Observer implementation for monitoring network activity.
 
+use crate::dead_reckoning::{DeadReckoning, PredictedAgent};
 use anyhow::Result;
+use glam::Vec3;
 use libp2p::{
     gossipsub, identify, identity, noise, tcp, yamux, Multiaddr, PeerId, Swarm,
     SwarmBuilder,
 };
 use manifold_protocol::Action;
+use std::collections::HashMap;
 use std::time::Duration;
 use tracing::{error, info, warn};
 
@@ -15,6 +18,10 @@ const ACTIONS_TOPIC: &str = "manifold-actions";
 /// Read-only observer that monitors network gossipsub messages.
 pub struct Observer {
     swarm: Swarm<ObserverBehaviour>,
+    /// Dead reckoning engine for smooth agent position prediction
+    dead_reckoning: DeadReckoning,
+    /// Map of agent IDs to their predicted states
+    predicted_agents: HashMap<String, PredictedAgent>,
 }
 
 /// Minimal network behaviour for read-only observation.
@@ -70,7 +77,11 @@ impl Observer {
             })
             .build();
 
-        Ok(Self { swarm })
+        Ok(Self {
+            swarm,
+            dead_reckoning: DeadReckoning::new(),
+            predicted_agents: HashMap::new(),
+        })
     }
 
     /// Subscribe to observation topics.
@@ -179,7 +190,7 @@ impl Observer {
 
                 // TODO: Store action for visualization
                 // TODO: Update 3D scene with agent positions and movements
-                self.display_action(&action);
+                self.display_action(&action, &source.to_string());
             }
             Err(_) => {
                 // Not a valid Action, display raw message
@@ -196,38 +207,96 @@ impl Observer {
 
     /// Display action in a human-readable format.
     ///
+    /// Uses dead reckoning for smooth position prediction of agent movements.
     /// TODO: Replace console output with 3D visualization using wgpu/rend3
     /// (Section 5.3)
-    fn display_action(&self, action: &Action) {
+    fn display_action(&mut self, action: &Action, agent_id: &str) {
         match action {
             Action::Move { target } => {
-                info!("  ➡️  Agent moved to [{:.2}, {:.2}, {:.2}]", target.x, target.y, target.z);
+                // Update or create predicted agent state
+                if let Some(predicted_agent) = self.predicted_agents.get_mut(agent_id) {
+                    // Update existing agent with new authoritative position
+                    // For now, we assume zero velocity/acceleration since we don't have
+                    // that data in the Action message. In a real implementation,
+                    // the state updates would include velocity/acceleration fields.
+                    self.dead_reckoning.update_agent(
+                        predicted_agent,
+                        *target,
+                        Vec3::ZERO, // TODO: Get actual velocity from state update
+                        Vec3::ZERO, // TODO: Get actual acceleration from state update
+                    );
+
+                    // Get smoothed display position
+                    let display_pos = self.dead_reckoning.get_display_position(predicted_agent);
+                    
+                    info!(
+                        "  ➡️  Agent {} moved to [{:.2}, {:.2}, {:.2}] (predicted: [{:.2}, {:.2}, {:.2}])",
+                        agent_id,
+                        target.x, target.y, target.z,
+                        display_pos.x, display_pos.y, display_pos.z
+                    );
+                } else {
+                    // Create new predicted agent
+                    let predicted_agent = self.dead_reckoning.create_agent(
+                        *target,
+                        Vec3::ZERO,
+                        Vec3::ZERO,
+                    );
+                    self.predicted_agents.insert(agent_id.to_string(), predicted_agent);
+                    
+                    info!("  ➡️  Agent {} moved to [{:.2}, {:.2}, {:.2}]", agent_id, target.x, target.y, target.z);
+                }
             }
             Action::Consume { resource_id } => {
-                info!("  🍽️  Agent consumed resource: {}", resource_id);
+                info!("  🍽️  Agent {} consumed resource: {}", agent_id, resource_id);
             }
             Action::Replicate { partner_id } => {
                 if let Some(partner) = partner_id {
-                    info!("  👶 Agent replicated with partner: {}", partner);
+                    info!("  👶 Agent {} replicated with partner: {}", agent_id, partner);
                 } else {
-                    info!("  👶 Agent replicated (asexual)");
+                    info!("  👶 Agent {} replicated (asexual)", agent_id);
                 }
             }
             Action::Broadcast { message } => {
                 info!(
-                    "  📢 Agent broadcast: {}",
+                    "  📢 Agent {} broadcast: {}",
+                    agent_id,
                     String::from_utf8_lossy(message)
                 );
             }
             Action::Propose { proposal } => {
-                info!("  🗳️  Agent proposed: {}", proposal.description);
+                info!("  🗳️  Agent {} proposed: {}", agent_id, proposal.description);
             }
             Action::Vote {
                 proposal_id,
                 support,
             } => {
                 let vote = if *support { "FOR" } else { "AGAINST" };
-                info!("  ✅ Agent voted {} on proposal: {}", vote, proposal_id);
+                info!("  ✅ Agent {} voted {} on proposal: {}", agent_id, vote, proposal_id);
+            }
+        }
+    }
+
+    /// Update all predicted agent positions based on elapsed time.
+    ///
+    /// This should be called regularly (e.g., every frame) to maintain
+    /// smooth predictions between authoritative updates.
+    #[allow(dead_code)]
+    fn update_predictions(&mut self) {
+        for (agent_id, predicted_agent) in self.predicted_agents.iter_mut() {
+            let predicted_pos = self.dead_reckoning.predict_position(predicted_agent);
+            let display_pos = self.dead_reckoning.get_display_position(predicted_agent);
+            
+            // Get time since last update for staleness detection
+            let time_since_update = self.dead_reckoning.time_since_update(predicted_agent);
+            
+            // Log if prediction is getting stale (no updates for > 5 seconds)
+            if time_since_update > Duration::from_secs(5) {
+                warn!(
+                    "⚠️  Agent {} prediction stale: {:.1}s since last update",
+                    agent_id,
+                    time_since_update.as_secs_f32()
+                );
             }
         }
     }
