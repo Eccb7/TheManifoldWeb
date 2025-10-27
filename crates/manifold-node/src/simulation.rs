@@ -5,10 +5,84 @@
 
 use glam::Vec3;
 use libp2p::PeerId;
-use manifold_protocol::{Agent, Genome};
+use manifold_protocol::{Agent, AgentHandoff, Genome, SectorId, StateHash};
 use rand::Rng;
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
+
+/// Manages sector assignment and agent handoff for distributed simulation.
+///
+/// The manifold space is partitioned into 3D sectors. Each node manages
+/// a subset of sectors, and agents are handed off between nodes when they
+/// move across sector boundaries.
+pub struct SectorManager {
+    /// Size of each sector (cubic dimension)
+    sector_size: f32,
+    
+    /// Sectors managed by this node
+    local_sectors: Vec<SectorId>,
+    
+    /// Mapping of sector IDs to responsible node peer IDs
+    /// TODO: Implement DHT-based sector assignment for decentralization
+    sector_ownership: HashMap<SectorId, PeerId>,
+}
+
+impl SectorManager {
+    pub fn new(sector_size: f32, local_peer_id: PeerId) -> Self {
+        let mut manager = Self {
+            sector_size,
+            local_sectors: Vec::new(),
+            sector_ownership: HashMap::new(),
+        };
+        
+        // Start by claiming sector 0
+        manager.claim_sector(0, local_peer_id);
+        
+        manager
+    }
+    
+    /// Claim ownership of a sector.
+    pub fn claim_sector(&mut self, sector_id: SectorId, owner: PeerId) {
+        self.sector_ownership.insert(sector_id, owner);
+        if !self.local_sectors.contains(&sector_id) {
+            self.local_sectors.push(sector_id);
+        }
+    }
+    
+    /// Get the node responsible for a given sector.
+    pub fn get_sector_owner(&self, sector_id: SectorId) -> Option<PeerId> {
+        self.sector_ownership.get(&sector_id).copied()
+    }
+    
+    /// Check if this node manages a given sector.
+    pub fn is_local_sector(&self, sector_id: SectorId) -> bool {
+        self.local_sectors.contains(&sector_id)
+    }
+    
+    /// Calculate which sector a position belongs to.
+    pub fn position_to_sector(&self, position: Vec3) -> SectorId {
+        let x_grid = (position.x / self.sector_size).floor() as i64;
+        let y_grid = (position.y / self.sector_size).floor() as i64;
+        let z_grid = (position.z / self.sector_size).floor() as i64;
+        
+        // Spatial hash function
+        let hash = (x_grid.wrapping_mul(73856093) 
+                   ^ y_grid.wrapping_mul(19349663) 
+                   ^ z_grid.wrapping_mul(83492791)) as u64;
+        hash
+    }
+    
+    /// Prepare an agent for handoff to another sector.
+    pub fn prepare_handoff(&self, agent: &Agent, target_sector: SectorId, source_node: PeerId) -> AgentHandoff {
+        AgentHandoff::new(
+            agent.clone(),
+            agent.sector_id,
+            target_sector,
+            source_node,
+        )
+    }
+}
 
 /// Manages the simulation state for all agents in the local node.
 pub struct Simulation {
@@ -23,6 +97,12 @@ pub struct Simulation {
 
     /// Mutation rate for genetic algorithm (0.0 to 1.0)
     mutation_rate: f64,
+    
+    /// Sector manager for distributed simulation
+    sector_manager: SectorManager,
+    
+    /// Pending agent handoffs to other nodes
+    pending_handoffs: Vec<AgentHandoff>,
 }
 
 impl Simulation {
@@ -33,6 +113,8 @@ impl Simulation {
             agents: HashMap::new(),
             tick_count: 0,
             mutation_rate: 0.01, // 1% mutation rate
+            sector_manager: SectorManager::new(100.0, local_peer_id), // 100 unit sectors
+            pending_handoffs: Vec::new(),
         }
     }
 
@@ -51,10 +133,128 @@ impl Simulation {
             );
         }
 
+        // Check for agents that need sector reassignment
+        self.check_sector_boundaries();
+
         // TODO: Process agent actions from their genome execution
         // TODO: Apply energy decay
         // TODO: Check for replication conditions
         // TODO: Remove agents with zero energy
+    }
+    
+    /// Check if any agents have moved across sector boundaries and prepare handoffs.
+    fn check_sector_boundaries(&mut self) {
+        let mut agents_to_handoff = Vec::new();
+        
+        for (agent_id, agent) in &mut self.agents {
+            let new_sector = self.sector_manager.position_to_sector(agent.position);
+            
+            if new_sector != agent.sector_id {
+                // Agent has crossed sector boundary
+                if self.sector_manager.is_local_sector(new_sector) {
+                    // Simple local reassignment
+                    info!(
+                        "🔄 Agent {} moved from sector {} to local sector {}",
+                        agent_id, agent.sector_id, new_sector
+                    );
+                    agent.sector_id = new_sector;
+                } else {
+                    // Need to hand off to another node
+                    // TODO: Implement redundant ghost agents in overlapping boundary zones
+                    warn!(
+                        "📦 Agent {} needs handoff from sector {} to remote sector {}",
+                        agent_id, agent.sector_id, new_sector
+                    );
+                    
+                    let handoff = self.sector_manager.prepare_handoff(
+                        agent,
+                        new_sector,
+                        self.local_peer_id,
+                    );
+                    agents_to_handoff.push((agent_id.clone(), handoff));
+                }
+            }
+        }
+        
+        // Queue handoffs and remove agents
+        for (agent_id, handoff) in agents_to_handoff {
+            self.pending_handoffs.push(handoff);
+            self.agents.remove(&agent_id);
+            info!("📤 Agent {} queued for handoff", agent_id);
+        }
+    }
+    
+    /// Accept an agent from another node via handoff.
+    pub fn receive_agent_handoff(&mut self, handoff: AgentHandoff) -> anyhow::Result<()> {
+        let agent_id = handoff.agent.id.to_string();
+        
+        // Verify this node manages the target sector
+        if !self.sector_manager.is_local_sector(handoff.to_sector) {
+            anyhow::bail!(
+                "Cannot accept handoff for sector {} - not managed by this node",
+                handoff.to_sector
+            );
+        }
+        
+        let mut agent = handoff.agent;
+        agent.sector_id = handoff.to_sector;
+        
+        self.agents.insert(agent_id.clone(), agent);
+        info!(
+            "📥 Accepted agent {} handoff from sector {} to sector {}",
+            agent_id, handoff.from_sector, handoff.to_sector
+        );
+        
+        Ok(())
+    }
+    
+    /// Get pending handoffs and clear the queue.
+    pub fn take_pending_handoffs(&mut self) -> Vec<AgentHandoff> {
+        std::mem::take(&mut self.pending_handoffs)
+    }
+
+    /// Calculate a deterministic hash of the current simulation state.
+    ///
+    /// This hash is used for consensus - all nodes should compute the same
+    /// hash if they have the same simulation state.
+    ///
+    /// # Returns
+    /// A 32-byte SHA-256 hash of the simulation state.
+    pub fn calculate_state_hash(&self) -> StateHash {
+        let mut hasher = Sha256::new();
+
+        // Hash tick count
+        hasher.update(self.tick_count.to_le_bytes());
+
+        // Hash each agent in a deterministic order (sorted by ID)
+        let mut agent_ids: Vec<_> = self.agents.keys().collect();
+        agent_ids.sort();
+
+        for agent_id in agent_ids {
+            if let Some(agent) = self.agents.get(agent_id) {
+                // Hash agent ID
+                hasher.update(agent_id.as_bytes());
+
+                // Hash agent energy
+                hasher.update(agent.energy.to_le_bytes());
+
+                // Hash agent position (convert to bytes)
+                hasher.update(agent.position.x.to_le_bytes());
+                hasher.update(agent.position.y.to_le_bytes());
+                hasher.update(agent.position.z.to_le_bytes());
+
+                // Hash genome CID
+                hasher.update(agent.genome.cid.as_bytes());
+
+                // Hash genome parameters
+                hasher.update(&agent.genome.parameters);
+            }
+        }
+
+        let result = hasher.finalize();
+        let mut hash = [0u8; 32];
+        hash.copy_from_slice(&result);
+        hash
     }
 
     /// Spawn a new agent with the given genome CID and initial energy.
@@ -74,14 +274,18 @@ impl Simulation {
             rng.gen_range(-100.0..100.0),
         );
 
-        let agent = Agent::new(agent_id, genome, initial_energy, position);
+        let mut agent = Agent::new(agent_id, genome, initial_energy, position);
+        
+        // Assign agent to appropriate sector
+        let sector_id = self.sector_manager.position_to_sector(position);
+        agent.sector_id = sector_id;
+        
         let agent_id_str = agent_id.to_string();
-
         self.agents.insert(agent_id_str.clone(), agent);
 
         info!(
-            "🐣 Spawned agent {} at position {:?} with {} energy",
-            agent_id_str, position, initial_energy
+            "🐣 Spawned agent {} at position {:?} in sector {} with {} energy",
+            agent_id_str, position, sector_id, initial_energy
         );
 
         Ok(agent_id_str)
@@ -206,5 +410,43 @@ mod tests {
         let agent_id = result.unwrap();
         assert!(sim.agents.contains_key(&agent_id));
         assert_eq!(sim.agents[&agent_id].energy, 1000);
+    }
+
+    #[test]
+    fn test_state_hash_deterministic() {
+        let mut sim1 = Simulation::new(PeerId::random());
+        let mut sim2 = Simulation::new(PeerId::random());
+
+        // Same state should produce same hash
+        let hash1 = sim1.calculate_state_hash();
+        let hash2 = sim2.calculate_state_hash();
+        assert_eq!(hash1, hash2);
+
+        // Add same agent to both
+        let agent_id = "test-agent-1";
+        let genome = Genome::new("QmTest".to_string(), vec![1, 2, 3]);
+        let agent = Agent::new(PeerId::random(), genome, 100, Vec3::ZERO);
+        
+        sim1.agents.insert(agent_id.to_string(), agent.clone());
+        sim2.agents.insert(agent_id.to_string(), agent);
+
+        let hash1 = sim1.calculate_state_hash();
+        let hash2 = sim2.calculate_state_hash();
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_state_hash_changes_with_state() {
+        let mut sim = Simulation::new(PeerId::random());
+        
+        let hash1 = sim.calculate_state_hash();
+        
+        // Spawn an agent
+        sim.spawn_agent("QmTest", 100).unwrap();
+        
+        let hash2 = sim.calculate_state_hash();
+        
+        // Hashes should be different
+        assert_ne!(hash1, hash2);
     }
 }
