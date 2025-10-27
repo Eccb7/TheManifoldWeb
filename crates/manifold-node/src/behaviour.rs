@@ -9,6 +9,7 @@ use libp2p::{
     swarm::NetworkBehaviour,
     StreamProtocol,
 };
+use manifold_protocol::{consensus::{StateProposal, StateVote}, AgentHandoff};
 use serde::{Deserialize, Serialize};
 
 /// Request to spawn a new agent on the network.
@@ -26,6 +27,13 @@ pub struct SpawnResponse {
     pub message: String,
 }
 
+/// Response to an agent handoff request.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HandoffResponse {
+    pub success: bool,
+    pub message: String,
+}
+
 /// The main network behavior combining DHT, pubsub, and custom protocols.
 #[derive(NetworkBehaviour)]
 pub struct ManifoldBehaviour {
@@ -34,6 +42,10 @@ pub struct ManifoldBehaviour {
     pub identify: identify::Behaviour,
     pub request_response:
         request_response::cbor::Behaviour<SpawnRequest, SpawnResponse>,
+    pub consensus:
+        request_response::cbor::Behaviour<StateProposal, StateVote>,
+    pub handoff:
+        request_response::cbor::Behaviour<AgentHandoff, HandoffResponse>,
 }
 
 impl ManifoldBehaviour {
@@ -73,11 +85,31 @@ impl ManifoldBehaviour {
             request_response::Config::default(),
         );
 
+        // Configure consensus protocol for state proposals and voting
+        let consensus = request_response::cbor::Behaviour::new(
+            [(
+                StreamProtocol::new("/manifold/consensus/1.0.0"),
+                ProtocolSupport::Full,
+            )],
+            request_response::Config::default(),
+        );
+
+        // Configure agent handoff protocol for cross-sector transfers
+        let handoff = request_response::cbor::Behaviour::new(
+            [(
+                StreamProtocol::new("/manifold/handoff/1.0.0"),
+                ProtocolSupport::Full,
+            )],
+            request_response::Config::default(),
+        );
+
         Ok(Self {
             kademlia,
             gossipsub,
             identify,
             request_response,
+            consensus,
+            handoff,
         })
     }
 }
