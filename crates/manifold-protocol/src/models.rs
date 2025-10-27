@@ -6,6 +6,13 @@
 use glam::Vec3;
 use libp2p_identity::PeerId;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+
+/// Identifier for a spatial sector in the distributed simulation.
+///
+/// The manifold space is partitioned into sectors, with each sector
+/// potentially managed by different nodes for horizontal scalability.
+pub type SectorId = u64;
 
 /// A content-addressed genome defining an agent's behavior.
 ///
@@ -68,6 +75,15 @@ pub struct Agent {
     /// 3D position in the manifold space
     pub position: Vec3,
 
+    /// 3D velocity vector for dead reckoning (units per second)
+    pub velocity: Vec3,
+
+    /// 3D acceleration vector for predictive motion (units per second²)
+    pub acceleration: Vec3,
+
+    /// Sector this agent belongs to (for distributed simulation)
+    pub sector_id: SectorId,
+
     /// Creation timestamp (Unix epoch milliseconds)
     pub created_at: u64,
 
@@ -82,12 +98,34 @@ impl Agent {
             genome,
             energy: initial_energy,
             position,
+            velocity: Vec3::ZERO,
+            acceleration: Vec3::ZERO,
+            sector_id: 0, // Default sector, will be assigned by SectorManager
             created_at: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
                 .as_millis() as u64,
             generation: 0,
         }
+    }
+
+    /// Calculate which sector this agent should belong to based on position.
+    pub fn calculate_sector(&self, sector_size: f32) -> SectorId {
+        // Simple grid-based sectoring: sector_id = x_grid * 1000000 + y_grid * 1000 + z_grid
+        let x_grid = (self.position.x / sector_size).floor() as i64;
+        let y_grid = (self.position.y / sector_size).floor() as i64;
+        let z_grid = (self.position.z / sector_size).floor() as i64;
+        
+        // Convert to non-negative sector ID using a spatial hash
+        let hash = (x_grid.wrapping_mul(73856093) 
+                   ^ y_grid.wrapping_mul(19349663) 
+                   ^ z_grid.wrapping_mul(83492791)) as u64;
+        hash
+    }
+
+    /// Check if agent has moved to a different sector.
+    pub fn needs_sector_reassignment(&self, sector_size: f32) -> bool {
+        self.calculate_sector(sector_size) != self.sector_id
     }
 }
 
@@ -134,6 +172,44 @@ pub enum Action {
 
     /// Vote on a governance proposal
     Vote { proposal_id: String, support: bool },
+}
+
+/// Agent handoff message for cross-sector movement.
+///
+/// When an agent moves from one sector to another, the source node
+/// sends this handoff message to the target node managing the new sector.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentHandoff {
+    /// The agent being transferred
+    pub agent: Agent,
+    
+    /// Source sector ID
+    pub from_sector: SectorId,
+    
+    /// Destination sector ID
+    pub to_sector: SectorId,
+    
+    /// Timestamp of handoff initiation
+    pub timestamp: u64,
+    
+    /// Source node's peer ID
+    #[serde(with = "peer_id_serde")]
+    pub source_node: PeerId,
+}
+
+impl AgentHandoff {
+    pub fn new(agent: Agent, from_sector: SectorId, to_sector: SectorId, source_node: PeerId) -> Self {
+        Self {
+            agent,
+            from_sector,
+            to_sector,
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            source_node,
+        }
+    }
 }
 
 /// Identity type for agents participating in governance.
