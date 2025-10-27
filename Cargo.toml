@@ -1,0 +1,41 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/manifold-protocol",
+    "crates/manifold-node",
+    "crates/genesis-sdk",
+    "crates/observer-client",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["The Manifold Web Contributors"]
+license = "MIT"
+repository = "https://github.com/Eccb7/TheManifoldWeb"
+
+[workspace.dependencies]
+# Core dependencies
+tokio = { version = "1.40", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Networking
+libp2p = { version = "0.53", features = ["tcp", "noise", "yamux", "gossipsub", "kad", "request-response", "identify", "macros"] }
+futures = "0.3"
+
+# Math and utilities
+glam = { version = "0.28", features = ["serde"] }
+rand = "0.8"
+
+# HTTP and IPFS
+reqwest = { version = "0.12", features = ["multipart", "json"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Internal crates
+manifold-protocol = { path = "crates/manifold-protocol" }
