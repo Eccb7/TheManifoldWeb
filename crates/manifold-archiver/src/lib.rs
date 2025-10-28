@@ -171,7 +171,7 @@ impl Archiver {
     /// # Example
     /// ```no_run
     /// # use manifold_archiver::{Archiver, GenesisBlock, WorldConfig};
-    /// # tokio_test::block_on(async {
+    /// # async fn example() -> anyhow::Result<()> {
     /// let archiver = Archiver::new("https://arweave.net", "wallet.json").await?;
     /// let genesis = GenesisBlock::new(
     ///     vec!["QmExample".to_string()],
@@ -187,7 +187,9 @@ impl Archiver {
     /// );
     /// let tx_id = archiver.archive_genesis_block(&genesis).await?;
     /// println!("Genesis block archived: https://arweave.net/{}", tx_id);
-    /// # Ok::<(), anyhow::Error>(())
+    /// # Ok(())
+    /// # }
+    /// ```
     /// # });
     /// ```
     pub async fn archive_genesis_block(&self, genesis: &GenesisBlock) -> Result<String> {
