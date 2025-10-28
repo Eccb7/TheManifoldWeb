@@ -1,0 +1,29 @@
+[package]
+name = "manifold-contracts"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+manifold-protocol = { workspace = true }
+libp2p-identity = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+sha2 = { workspace = true }
+hex = "0.4"
+borsh = "1.5"
+
+# For WASM support
+wasm-bindgen = { version = "0.2", optional = true }
+getrandom = { version = "0.2", features = ["js"], optional = true }
+
+[features]
+default = []
+wasm = ["wasm-bindgen", "getrandom"]
+
+[dev-dependencies]
+tokio = { workspace = true }
