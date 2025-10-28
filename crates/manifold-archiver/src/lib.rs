@@ -9,7 +9,7 @@
 //! ensuring critical simulation data persists indefinitely.
 
 use anyhow::Result;
-use arweave_rs::{Arweave, Transaction};
+use arweave_rs::Arweave;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::Path;
@@ -145,7 +145,10 @@ impl Archiver {
     /// * `arweave_node_url` - URL of the Arweave gateway (e.g., "https://arweave.net")
     /// * `wallet_path` - Path to the Arweave wallet JSON file
     pub async fn new(arweave_node_url: &str, wallet_path: &str) -> Result<Self> {
-        let arweave = Arweave::new(arweave_node_url.parse()?);
+        let arweave = Arweave::from_keypair_path(
+            Path::new(wallet_path).to_path_buf(),
+            arweave_node_url.parse()?,
+        )?;
         
         // Verify wallet exists
         if !Path::new(wallet_path).exists() {
@@ -254,7 +257,7 @@ impl Archiver {
         agent_count: usize,
         metadata: serde_json::Value,
     ) -> Result<String> {
-        let checkpoint = serde_json::json!({
+        let _checkpoint = serde_json::json!({
             "type": "checkpoint",
             "tick": tick,
             "state_hash": hex::encode(state_hash),
