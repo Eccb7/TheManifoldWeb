@@ -26,7 +26,7 @@ thiserror = "1.0"
 
 # Networking
 libp2p = { version = "0.53", features = ["tcp", "noise", "yamux", "gossipsub", "kad", "request-response", "identify", "macros", "tokio", "cbor"] }
-libp2p-identity = { version = "0.2", features = ["peerid"] }
+libp2p-identity = { version = "0.2", features = ["peerid", "rand"] }
 futures = "0.3"
 
 # Math and utilities
