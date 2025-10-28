@@ -102,7 +102,7 @@ pub async fn spawn_agent_via_libp2p(
 
 /// Helper to validate multiaddr format.
 pub fn validate_multiaddr(addr: &str) -> Result<()> {
-    addr.parse::<libp2p::Multiaddr>()
+    addr.parse::<libp2p::core::Multiaddr>()
         .context("Invalid multiaddr format")?;
     Ok(())
 }
