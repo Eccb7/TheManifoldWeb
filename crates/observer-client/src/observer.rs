@@ -5,13 +5,21 @@ use anyhow::Result;
 use futures::StreamExt;
 use glam::Vec3;
 use libp2p::{
-    gossipsub, identify, identity, noise, tcp, yamux, Multiaddr, PeerId, Swarm,
+    gossipsub,
+    identity,
+    noise,
+    swarm::NetworkBehaviour,
+    tcp,
+    yamux,
+    Multiaddr,
+    PeerId,
+    Swarm,
     SwarmBuilder,
 };
 use manifold_protocol::Action;
 use std::collections::HashMap;
 use std::time::Duration;
-use tracing::{error, info, warn};
+use tracing::{info, warn};
 
 /// Topic for monitoring agent actions.
 const ACTIONS_TOPIC: &str = "manifold-actions";
@@ -26,10 +34,9 @@ pub struct Observer {
 }
 
 /// Minimal network behaviour for read-only observation.
-#[derive(libp2p::swarm::NetworkBehaviour)]
+#[derive(NetworkBehaviour)]
 struct ObserverBehaviour {
     gossipsub: gossipsub::Behaviour,
-    identify: identify::Behaviour,
 }
 
 impl Observer {
@@ -53,15 +60,8 @@ impl Observer {
         )
         .map_err(|e| anyhow::anyhow!("Gossipsub initialization error: {}", e))?;
 
-        // Configure Identify protocol
-        let identify = identify::Behaviour::new(identify::Config::new(
-            "/manifold-observer/1.0.0".to_string(),
-            local_key.public(),
-        ));
-
         let behaviour = ObserverBehaviour {
             gossipsub,
-            identify,
         };
 
         // Build swarm
@@ -133,18 +133,6 @@ impl Observer {
                         propagation_source,
                         message_id,
                         message,
-                    );
-                }
-
-                libp2p::swarm::SwarmEvent::Behaviour(
-                    ObserverBehaviourEvent::Identify(identify::Event::Received {
-                        peer_id,
-                        info,
-                    }),
-                ) => {
-                    info!(
-                        "🔍 Discovered peer {}: protocol {}",
-                        peer_id, info.protocol_version
                     );
                 }
 
