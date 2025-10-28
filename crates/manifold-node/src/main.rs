@@ -4,6 +4,7 @@
 //! peer-to-peer communication in The Manifold Web.
 
 mod behaviour;
+mod contracts;
 mod network;
 mod simulation;
 
