@@ -3,8 +3,9 @@
 use crate::behaviour::{HandoffResponse, ManifoldBehaviour, ManifoldBehaviourEvent, SpawnRequest, SpawnResponse};
 use crate::simulation::Simulation;
 use anyhow::Result;
+use futures::StreamExt;
 use libp2p::{
-    gossipsub, identity, noise, request_response, tcp, yamux, Multiaddr, PeerId, Swarm,
+    gossipsub, identify, identity, kad, noise, request_response, tcp, yamux, Multiaddr, PeerId, Swarm,
     SwarmBuilder,
 };
 use manifold_protocol::consensus::{ConsensusResult, StateCommit, StateProposal, StateVote};
@@ -35,7 +36,8 @@ impl Network {
         info!("Local peer ID: {}", local_peer_id);
 
         // Create custom behaviour
-        let behaviour = ManifoldBehaviour::new(local_peer_id, &local_key)?;
+        let behaviour = ManifoldBehaviour::new(local_peer_id, &local_key)
+            .map_err(|e| anyhow::anyhow!("Failed to create behaviour: {}", e))?;
 
         // Build swarm with TCP transport, Noise encryption, and Yamux multiplexing
         let swarm = SwarmBuilder::with_existing_identity(local_key)
@@ -351,14 +353,23 @@ impl Network {
                 // Check if we have enough votes for consensus
                 if let Some(votes) = self.pending_votes.get(&response.round_id) {
                     let total_nodes = self.known_peers.len() + 1; // +1 for self
-                    let consensus_result = ConsensusResult::from_votes(votes, total_nodes);
+                    let agree_count = votes.iter().filter(|v| v.agree).count();
+                    let total_count = votes.len();
+                    let consensus_result = ConsensusResult::check(agree_count, total_count, total_nodes);
 
                     match consensus_result {
-                        ConsensusResult::Achieved(commit) => {
+                        ConsensusResult::Achieved { agree_count, total_count } => {
                             info!(
-                                "✅ Consensus achieved for round {} with {} votes",
-                                commit.round_id, commit.vote_count
+                                "✅ Consensus achieved for round {} with {}/{} votes",
+                                response.round_id, agree_count, total_count
                             );
+
+                            let commit = StateCommit {
+                                round_id: response.round_id,
+                                tick: self.simulation.tick_count,
+                                state_hash: response.voter_hash,
+                                vote_count: total_count,
+                            };
 
                             // Broadcast commit over gossipsub
                             if let Ok(commit_bytes) = serde_json::to_vec(&commit) {
