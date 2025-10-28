@@ -23,7 +23,7 @@ async fn main() -> Result<()> {
     info!("🌐 Starting Manifold Node...");
 
     // Initialize network
-    let mut network = network::Network::new().await?;
+    let network = network::Network::new().await?;
 
     info!("📡 Network initialized");
     info!("🔑 Peer ID: {}", network.local_peer_id());
