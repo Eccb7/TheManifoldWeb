@@ -5,7 +5,7 @@
 
 use libp2p::{
     gossipsub, identify, kad,
-    request_response::{self, ProtocolSupport},
+    request_response::{self, cbor, ProtocolSupport},
     swarm::NetworkBehaviour,
     StreamProtocol,
 };
@@ -27,11 +27,23 @@ pub struct SpawnResponse {
     pub message: String,
 }
 
+impl std::fmt::Display for SpawnResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SpawnResponse(success={}, message={})", self.success, self.message)
+    }
+}
+
 /// Response to an agent handoff request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HandoffResponse {
     pub success: bool,
     pub message: String,
+}
+
+impl std::fmt::Display for HandoffResponse {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "HandoffResponse(success={}, message={})", self.success, self.message)
+    }
 }
 
 /// The main network behavior combining DHT, pubsub, and custom protocols.
