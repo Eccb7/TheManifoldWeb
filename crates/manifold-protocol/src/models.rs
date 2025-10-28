@@ -6,7 +6,6 @@
 use glam::Vec3;
 use libp2p_identity::PeerId;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 /// Identifier for a spatial sector in the distributed simulation.
 ///
