@@ -49,6 +49,12 @@ pub struct StateVote {
     pub voter_hash: StateHash,
 }
 
+impl std::fmt::Display for StateVote {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "StateVote(round={}, voter={}, agree={})", self.round_id, self.voter, self.agree)
+    }
+}
+
 /// Commit message broadcast after consensus is reached.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StateCommit {
