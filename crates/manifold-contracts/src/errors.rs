@@ -36,6 +36,18 @@ pub enum ContractError {
 
     #[error("Custom error: {0}")]
     Custom(String),
+    
+    #[error("Insufficient funds: {0}")]
+    InsufficientFunds(String),
+    
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+}
+
+impl From<serde_json::Error> for ContractError {
+    fn from(err: serde_json::Error) -> Self {
+        ContractError::SerializationError(err.to_string())
+    }
 }
 
 pub type ContractResult<T> = Result<T, ContractError>;

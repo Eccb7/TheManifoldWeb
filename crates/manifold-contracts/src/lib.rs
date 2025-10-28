@@ -33,14 +33,16 @@ pub mod governance;
 pub mod runtime;
 pub mod state;
 pub mod storage;
+pub mod templates;
 pub mod traits;
 
 // Re-exports for convenience
 pub use context::{ContractContext, ExecutionContext};
 pub use errors::{ContractError, ContractResult};
+pub use governance::{GovernanceToken, ManifoldDAO, TokenConfig, DAOConfig};
 pub use runtime::{ContractRuntime, GasMeter};
 pub use state::{StateManager, StateTransition};
-pub use storage::{ContractStorage, StorageKey, StorageValue};
+pub use storage::{ContractStorage, MemoryStorage, PersistentStorage, StorageKey, StorageValue};
 pub use traits::{Contract, ContractDeployment, ContractExecution, ContractQuery};
 
 /// Standard response type for contract execution

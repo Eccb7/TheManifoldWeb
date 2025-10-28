@@ -6,6 +6,10 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[[bin]]
+name = "manifold-cli"
+path = "src/bin/manifold-cli.rs"
+
 [dependencies]
 manifold-protocol = { workspace = true }
 libp2p-identity = { workspace = true }
@@ -16,6 +20,9 @@ thiserror = { workspace = true }
 sha2 = { workspace = true }
 hex = "0.4"
 borsh = "1.5"
+clap = { version = "4.5", features = ["derive"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 # For WASM support
 wasm-bindgen = { version = "0.2", optional = true }

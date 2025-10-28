@@ -48,6 +48,9 @@ pub struct ContractContext {
     
     /// Gas meter for resource tracking
     pub gas_meter: GasMeter,
+    
+    /// Event attributes collected during execution
+    pub attributes: Vec<(String, String)>,
 }
 
 impl ContractContext {
@@ -60,6 +63,7 @@ impl ContractContext {
             info,
             storage,
             gas_meter: GasMeter::new(gas_limit),
+            attributes: Vec::new(),
         }
     }
 
@@ -71,5 +75,20 @@ impl ContractContext {
     /// Get remaining gas
     pub fn remaining_gas(&self) -> u64 {
         self.gas_meter.remaining()
+    }
+    
+    /// Add an event attribute
+    pub fn add_attribute(&mut self, key: impl Into<String>, value: impl Into<String>) {
+        self.attributes.push((key.into(), value.into()));
+    }
+    
+    /// Get collected attributes
+    pub fn get_attributes(&self) -> &[(String, String)] {
+        &self.attributes
+    }
+    
+    /// Clear attributes
+    pub fn clear_attributes(&mut self) {
+        self.attributes.clear();
     }
 }
