@@ -93,7 +93,7 @@ pub struct Simulation {
     agents: HashMap<String, Agent>,
 
     /// Simulation tick counter
-    tick_count: u64,
+    pub tick_count: u64,
 
     /// Mutation rate for genetic algorithm (0.0 to 1.0)
     mutation_rate: f64,
